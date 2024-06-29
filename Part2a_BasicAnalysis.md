@@ -22,6 +22,7 @@ Installation instructions will be included in the following code sections.
 ```
 # Install new packages
 install.packages('Seurat')
+install.packages("hdf5r")
 library(Seurat)
 ```
 
@@ -29,35 +30,35 @@ library(Seurat)
 ### Create a SeuratObject
 
 ```
-# 2.1 read in 10X folder
-pbmc.data<- Read10X(”./data1")
+# 2.1 (optional) read in 10X folder
+pbmc.data<- Read10X(”data/pbmc_5k")
 
-# 2.1 (optional) read in 10X h5 file; You can also read csv or txt files
-pbmc.data <- Read10X_h5("5k_pbmc_v3_filtered_feature_bc_matrix.h5")
+# 2.1 (optional) read in 10X h5 file; You can also read csv or txt files
+# pbmc.data <- Read10X_h5("data/5k_pbmc_v3_filtered_feature_bc_matrix.h5")
 
 # 2.2 create Seurat Object
-pbmc <- CreateSeuratObject(counts =  pbmc.data, min.cells = 3,min.features = 200)
+pbmc <- CreateSeuratObject(counts = pbmc.data, min.cell= 3, min.features = 200)
 pbmc
-
 ```
 
 ## Section 3: 
 ### Processing data (QC, normalization, feature selection)
-
 ```
-# 3.1 Quality control (QC)
-# 3.1.1 calculate mitochondrial gene percentage for each cell. (^Mt- or ^mt-)
-pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+# 3.1 Quality control (QC)
+# 3.1.1 calculate mitochondrial gene percentage for each cell. (^Mt- or ^mt-)
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
 
-# 3.1.2 Plot QC matrics
-VlnPlot(pbmc, 
-        features = c("nFeature_RNA","nCount_RNA","percent.mt"),
-        ncol = 3)
+# 3.1.2 Plot QC matrics
+VlnPlot(pbmc, 
+        features = c("nFeature_RNA","nCount_RNA","percent.mt"),
+        ncol = 3)
 
-pbmc <- subset(pbmc, 
-               subset = percent.mt < 5 & nFeature_RNA > 200 & nFeature_RNA < 2500)
+pbmc <- subset(pbmc, 
+               subset = percent.mt < 5 & nFeature_RNA > 200 & nFeature_RNA < 2500)
 ```
 ![Figure 1](Figures/2A_Sec3_1.png)
+
+
 ```
 # 3.2 normalization (Or check tutorial for scTransform V2)
 pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
@@ -67,9 +68,9 @@ pbmc  <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures =
 top10 <- head(VariableFeatures(pbmc), 10)
 plot1 <- VariableFeaturePlot(pbmc)
 LabelPoints(plot = plot1, points = top10, repel = TRUE)
-
 ```
 ![Figure 2](Figures/2A_Sec3_2.png)
+
 ```
 # 3.4 scaling data and remove unwanted variation
 pbmc <- ScaleData(object =  pbmc, vars.to.regress = c("percent.mt"))
@@ -80,7 +81,7 @@ pbmc <- ScaleData(object =  pbmc, vars.to.regress = c("percent.mt"))
 
 ```
 # 4.1 linear dimension reduction
-SeuratObject <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
 # 4.2 visualize top genes associated with reduction components
 VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
 # 4.3 visualize PCA results
@@ -92,12 +93,11 @@ DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
 
 ### Choosing reasonable PCs for further analysis
 ```
-# method I: use DimHeapmap
+# Method I: use DimHeapmap
 DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
 
-# method II: Elbow plot 
+# Method II: Elbow plot 
 ElbowPlot(pbmc)
-
 ```
 ![Figure 2](Figures/2A_Sec4_2.png)
 
@@ -376,9 +376,9 @@ library(ggplot2)
 library(dplyr)
 
 # Load individual data
-expression_matrix <- readRDS(url("http://staff.washington.edu/hpliner/data/cao_l2_expression.rds"))
-cell_metadata <- readRDS(url("http://staff.washington.edu/hpliner/data/cao_l2_colData.rds"))
-gene_annotation <- readRDS(url("http://staff.washington.edu/hpliner/data/cao_l2_rowData.rds"))
+expression_matrix <- readRDS("data/cao_l2_expression.rds")
+cell_metadata <- readRDS("data/cao_l2_colData.rds")
+gene_annotation <- readRDS("data/cao_l2_rowData.rds")
 
 # Create Monocle object
 cds <- new_cell_data_set(expression_matrix,
