@@ -139,7 +139,7 @@ We can see there is a significant difference in the SVGs found by scBSP which ha
 
 | PCLO  | POSTN |
 | ------------- | ------------- |
-| ![PCLO](plots/PCLO.png)  | ![POSTN](plots/POSTN.png) |
+| ![PCLO](Figures/PCLO.png)  | ![POSTN](Figures/POSTN.png) |
 
 
 # Example 2: HDST data of the Mouse Hippocampus 
@@ -477,7 +477,7 @@ saveGenePlotLog(Filtered_ExpMat, Coords, "SPINT2")
 ```
 | SPINT2  | 
 | ------------- |
-| ![SPINT2](plots/SPINT2.png)  | 
+| ![SPINT2](Figures/SPINT2.png)  | 
 
 # Cite
 1. Wang, J., Li, J., Kramer, S.T. et al. Dimension-agnostic and granularity-based spatially variable gene identification using BSP. Nat Commun 14, 7367 (2023). https://doi.org/10.1038/s41467-023-43256-5

@@ -32,7 +32,7 @@ Some users might have issues when installing CellChat pacakge due to different o
 
 # Part I: Data Input & Processing and Initialization of CellChat Object
 ## Prepare required input data for CellChat analysis
-First, Prepare required input data for CellChat analysis. Input data can be downloaded from the following link [here](https://figshare.com/articles/dataset/10X_visium_data_for_spatial-informed_cell-cell_communication/23621151). 
+First, Prepare required input data for CellChat analysis. Input data can be downloaded from the following link [here](https://figshare.com/articles/dataset/10X_visium_data_for_spatial-informed_cell-cell_communication/23621151). The required scale factors file can also be found in this Github's data folder, named `VisiumMouse_scalefactors_json.json`.
 
 
 First, load in the nessecary R libraries.
@@ -62,7 +62,6 @@ Seurat::SpatialDimPlot(visium.brain, label = T, label.size = 3, cols = color.use
 ![Figure 1](Figures/CellChat_spatial_1.png)
 
 Next, prepare input data for CellChat analysis
-A column named `samples` should be provided for spatial transcriptomics analysis, which is useful for analyzing cell-cell communication by aggregating multiple samples/replicates. Of note, for comparison analysis across different conditions, users still need to create a CellChat object seperately for each condition.  
 
 ```
 # Use normalized data matrix
@@ -94,7 +93,7 @@ For 10X Visium, the conversion factor of converting spatial coordinates from Pix
 
 ```
 # Spatial factors of spatial coordinates
-scalefactors = jsonlite::fromJSON(txt =  'scalefactors_json.json')
+scalefactors = jsonlite::fromJSON(txt =  'data/VisiumMouse_scalefactors_json.json')
 spot.size = 65 # the theoretical spot size (um) in 10X Visium
 conversion.factor = spot.size/scalefactors$spot_diameter_fullres
 spatial.factors = data.frame(ratio = conversion.factor, tol = spot.size/2)
@@ -105,7 +104,7 @@ min(d.spatial[d.spatial!=0]) # this value should approximately equal 100um for 1
 ```
 
 ## Create a CellChat Object
-There are different ways to initialize the spatial CellChat object (data matrix or Seurat object), but in this case, we will be starting from the seurat object. Here, the meta data in the object will be used by default and USER must provide group.by to define the cell groups. e.g, `group.by` = “ident” for the default cell identities in Seurat object.
+There are different ways to initialize the spatial CellChat object (data matrix or Seurat object), but in this case, we will be starting from the seurat object. Here, the meta data in the object will be used by default and USER must provide group.by to define the cell groups. e.g, `group.by` = “labels” for the default cell identities in Seurat object.
 ```
 cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels", datatype = "spatial", coordinates = spatial.locs, spatial.factors = spatial.factors)
 
@@ -141,29 +140,32 @@ cellchat@DB <- CellChatDB.use
 ## Preprocessing the Expression Data for Cell-Cell Communication Analysis
 To infer the cell state-specific communications, CellChat identifies over-expressed ligands or receptors in one cell group and then identifies over-expressed ligand-receptor interactions if either ligand or receptor are over-expressed.
 ```
+ptm = Sys.time()
 # subset the expression data of signaling genes for saving computation cost
 cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
 future::plan("multisession", workers = 4) 
 cellchat <- identifyOverExpressedGenes(cellchat)
 cellchat <- identifyOverExpressedInteractions(cellchat, variable.both = F)
-> The number of highly variable ligand-receptor pairs used for signaling inference is 648
  
-# project gene expression data onto PPI (Optional: when running it, USER should set `raw.use = FALSE` in the function `computeCommunProb()` in order to use the projected data)
-# cellchat <- projectData(cellchat, PPI.mouse)
 execution.time = Sys.time() - ptm
 print(as.numeric(execution.time, units = "secs"))
-> [1] 2565.9
+> [1] 27.642
 ```
 
 # Part II: Inference of Cell-Cell Communication Network
 CellChat infers the biologically significant cell-cell communication by assigning each interaction with a probability value and peforming a permutation test. CellChat models the probability of cell-cell communication by integrating gene expression with prior known knowledge of the interactions between signaling ligands, receptors and their cofactors using the law of mass action.
 
 ## Compute the Communication Crobability and Infer Cellular Communication Network
+Note: The number of inferred ligand-receptor pairs clearly depends on the method for calculating the average gene expression per cell group. In this tutorial, we use a 10% truncated mean to calculate the average gene expression.
 ```
 ptm = Sys.time()
 
 cellchat <- computeCommunProb(cellchat, type = "truncatedMean", trim = 0.1, distance.use = TRUE, interaction.range = 250, scale.distance = 0.01,
-                              contact.dependent = TRUE, contact.range = 100)
+                              contact.dependent = FALSE, contact.range = 100, nboot = 20)
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+> [1] 328.6343
 
 cellchat <- filterCommunication(cellchat, min.cells = 10)
 ```
@@ -177,19 +179,13 @@ cellchat <- computeCommunProbPathway(cellchat)
 We can calculate the aggregated cell-cell communication network by counting the number of links or summarizing the communication probability. USER can also calculate the aggregated network among a subset of cell groups by setting sources.use and targets.use.
 ```
 cellchat <- aggregateNet(cellchat)
-
-execution.time = Sys.time() - ptm
-print(as.numeric(execution.time, units = "secs"))
-> [1] 879.9437
 ```
 CellChat can also visualize the aggregated cell-cell communication network. For example, showing the number of interactions or the total interaction strength (weights) between any two cell groups using circle plot. 
 ```
-ptm = Sys.time()
-
 groupSize <- as.numeric(table(cellchat@idents))
 par(mfrow = c(1,2), xpd=TRUE)
-netVisual_circle(cellchat@net$count, vertex.weight = rowSums(cellchat@net$count), weight.scale = T, label.edge= F, title.name = "Number of interactions")
-netVisual_circle(cellchat@net$weight, vertex.weight = rowSums(cellchat@net$weight), weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+netVisual_circle(cellchat@net$count, vertex.weight = rowSums(cellchat@net$count), weight.scale = T, label.edge= F, title.name = "Number of interactions",  arrow.size = 0)
+netVisual_circle(cellchat@net$weight, vertex.weight = rowSums(cellchat@net$weight), weight.scale = T, label.edge= F, title.name = "Interaction weights/strength",  arrow.size = 0)
 ```
 ![Figure 3](Figures/CellChat_spatial_3.png)
 
@@ -209,6 +205,7 @@ netVisual_heatmap(cellchat, measure = "weight", color.heatmap = "Blues")
 Upon infering the cell-cell communication network, CellChat provides various functionality for further data exploration, analysis, and visualization. Here we only showcase the `circle plot` and the new `spatial plot`.
 
 ## Visualization of Cell-Cell Communication at Different Levels: 
+Here one signaling pathway is used as input. All the signaling pathways showing significant communications can be accessed by `cellchat@netP$pathways`.
 ```
 pathways.show <- c("IGF") 
 
@@ -256,6 +253,11 @@ Take an input of a ligand-receptor pair and show expression in binary
 spatialFeaturePlot(cellchat, pairLR.use = "IGF1_IGF1R", point.size = 1, do.binary = TRUE, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
 ```
 ![Figure 11](Figures/CellChat_spatial_11.png)
+
+# Part IV: Save the CellChat object
+```
+saveRDS(cellchat, file = "data/cellchat_visium_mouse_cortex.rds")
+```
 
 # Cite
 1. Suoqin Jin et al., CellChat for systematic analysis of cell-cell communication from single-cell and spatially resolved transcriptomics, bioRxiv 2023 [CellChat v2]
